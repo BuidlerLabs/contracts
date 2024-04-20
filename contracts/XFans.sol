@@ -77,7 +77,7 @@ contract XFans is Ownable {
         uint256 sum1 = (supply - 1 )* (supply) * (2 * (supply - 1) + 1) / 6;
         uint256 sum2 = (supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1) / 6;
         uint256 summation = sum2 - sum1;
-        return summation * 1 ether / 160000000;
+        return summation * 1 ether / 1600000;
     }
 
     function getBuyPrice(address sharesSubject, uint256 amount) public view returns (uint256) {
