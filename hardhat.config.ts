@@ -19,17 +19,17 @@ export default {
       url: "http://127.0.0.1:8545",
       gas: 5000000,
     },
-    blast_sepolia: {
+    arb_sepolia: {
       accounts: process.env.PRIVATE_KEY ? [process.env.PRIVATE_KEY] : [],
       timeout: 60 * 30 * 1000,
-      url: "https://sepolia.blast.io",
+      url: "https://arb-sepolia.g.alchemy.com/v2/81GwSFC4HeSp5_LV2mIxWBRHlGjY_pt6",
       gas: 5000000,
     }
   },
   solidity: {
     compilers: [
       {
-        version: '0.8.2',
+        version: '0.8.20',
         settings: {
           optimizer: {
             enabled: true,
@@ -55,19 +55,4 @@ export default {
     outDir: './build/types',
     target: 'ethers-v5',
   },
-  etherscan: {
-    apiKey: {
-      blast_sepolia: "blast_sepolia", // apiKey is not required, just set a placeholder
-    },
-    customChains: [
-      {
-        network: "blast_sepolia",
-        chainId: 168587773,
-        urls: {
-          apiURL: "https://api.routescan.io/v2/network/testnet/evm/168587773/etherscan",
-          browserURL: "https://testnet.blastscan.io"
-        }
-      }
-    ]
-  }
 }

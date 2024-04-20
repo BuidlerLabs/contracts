@@ -1,4 +1,4 @@
-pragma solidity >=0.8.2 <0.9.0;
+pragma solidity >=0.8.20;
 import "./abstract/Ownable.sol";
 
 
@@ -28,10 +28,13 @@ contract XFans is Ownable {
     event SetProtocolFeeDestination(address indexed protocolFeeDestination);
     event SetProtocolFeePercent(uint256 protocolFeePercent);
     event SetSubjectFeePercent(uint256 subjectFeePercent);
+    event ShareStaked(address indexed staker, address indexed sharesSubject, uint256 amount);
+    event ShareUnstaked(address indexed staker, address indexed sharesSubject, uint256 amount);
 
 
     // SharesSubject => (Holder => Balance)
     mapping(address => mapping(address => uint256)) public sharesBalance;
+    mapping(address => mapping(address => uint256)) public stakeBalance;
 
     // SharesSubject => Supply
     mapping(address => uint256) public sharesSupply;
@@ -71,10 +74,10 @@ contract XFans is Ownable {
 
     function getPrice(uint256 supply, uint256 amount) public pure returns (uint256) {
         supply = supply + 1;
-        uint256 sum1 = supply == 0 ? 0 : (supply - 1 )* (supply) * (2 * (supply - 1) + 1) / 6;
-        uint256 sum2 = supply == 0 && amount == 1 ? 0 : (supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1) / 6;
+        uint256 sum1 = (supply - 1 )* (supply) * (2 * (supply - 1) + 1) / 6;
+        uint256 sum2 = (supply - 1 + amount) * (supply + amount) * (2 * (supply - 1 + amount) + 1) / 6;
         uint256 summation = sum2 - sum1;
-        return summation * 1 ether / 16000;
+        return summation * 1 ether / 160000000;
     }
 
     function getBuyPrice(address sharesSubject, uint256 amount) public view returns (uint256) {
@@ -89,14 +92,30 @@ contract XFans is Ownable {
         uint256 price = getBuyPrice(sharesSubject, amount);
         uint256 protocolFee = price * protocolFeePercent / 1 ether;
         uint256 subjectFee = price * subjectFeePercent / 1 ether;
-        return price + protocolFee + subjectFee;
+        uint256 poolFee = price * poolFeePercent / 1 ether;
+        return price + protocolFee + subjectFee + poolFee;
+    }
+
+    function stake(address shareSubject, uint256 amount) public {
+        require(sharesBalance[shareSubject][msg.sender] >= amount, "Insufficient shares");
+        sharesBalance[shareSubject][msg.sender] = sharesBalance[shareSubject][msg.sender] - amount;
+        stakeBalance[shareSubject][msg.sender] = stakeBalance[shareSubject][msg.sender] + amount;
+        emit ShareStaked(msg.sender, shareSubject, amount);
+    }
+
+    function unstake(address shareSubject, uint256 amount) public {
+        require(stakeBalance[shareSubject][msg.sender] >= amount, "Insufficient staked shares");
+        stakeBalance[shareSubject][msg.sender] = stakeBalance[shareSubject][msg.sender] - amount;
+        sharesBalance[shareSubject][msg.sender] = sharesBalance[shareSubject][msg.sender] + amount;
+        emit ShareUnstaked(msg.sender, shareSubject, amount);
     }
 
     function getSellPriceAfterFee(address sharesSubject, uint256 amount) public view returns (uint256) {
         uint256 price = getSellPrice(sharesSubject, amount);
         uint256 protocolFee = price * protocolFeePercent / 1 ether;
         uint256 subjectFee = price * subjectFeePercent / 1 ether;
-        return price - protocolFee - subjectFee;
+        uint256 poolFee = price * poolFeePercent / 1 ether;
+        return price - protocolFee - subjectFee - poolFee;
     }
 
     function buyShares(address sharesSubject, uint256 amount) public payable {
@@ -111,7 +130,8 @@ contract XFans is Ownable {
         emit Trade(msg.sender, sharesSubject, poolFeeDestination, true, amount, price, protocolFee, subjectFee, poolFee, supply + amount);
         (bool success1, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success2, ) = sharesSubject.call{value: subjectFee}("");
-        require(success1 && success2, "Unable to send funds");
+        (bool success3, ) = poolFeeDestination.call{value: poolFee}("");
+        require(success1 && success2 && success3, "Unable to send funds");
     }
 
     function sellShares(address sharesSubject, uint256 amount) public payable {
@@ -125,9 +145,10 @@ contract XFans is Ownable {
         sharesBalance[sharesSubject][msg.sender] = sharesBalance[sharesSubject][msg.sender] - amount;
         sharesSupply[sharesSubject] = supply - amount;
         emit Trade(msg.sender, sharesSubject, poolFeeDestination, false, amount, price, protocolFee, subjectFee, poolFee, supply - amount);
-        (bool success1, ) = msg.sender.call{value: price - protocolFee - subjectFee}("");
+        (bool success1, ) = msg.sender.call{value: price - protocolFee - subjectFee - poolFee}("");
         (bool success2, ) = protocolFeeDestination.call{value: protocolFee}("");
         (bool success3, ) = sharesSubject.call{value: subjectFee}("");
-        require(success1 && success2 && success3, "Unable to send funds");
+        (bool success4, ) = poolFeeDestination.call{value: poolFee}("");
+        require(success1 && success2 && success3 && success4, "Unable to send funds");
     }
 }
